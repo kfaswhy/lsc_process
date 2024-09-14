@@ -8,7 +8,12 @@ BYTE* pad = NULL;
 int height = 0;
 int width = 0;
 
+int blk_width = 17;
+int blk_height = 27;
 
+U16* lsc_r = NULL;
+U16* lsc_g = NULL;
+U16* lsc_b = NULL;
 
 int main()
 {
@@ -38,9 +43,13 @@ int main()
 
 int img_process(RGB* img)
 {
-	//degamma(img);
-	save_bmp("2.bmp", img, width, height);
+	//查找最亮点
+	int max = search_max(img);
+	
 
+	//图像分块并计算均值
+	enblock(img, blk_width, blk_height);
+	save_bmp("2.bmp", img, width, height);
 
 
 	return 0;
@@ -50,6 +59,93 @@ int img_process(RGB* img)
 S32 calc_lsc(RGB* img)
 {
 	return 0;
+}
+
+S32 enblock(RGB* img, S32 blk_width, S32 blk_height)
+{
+
+	lsc_r = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
+	lsc_g = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
+	lsc_b = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
+	if (!lsc_r || !lsc_g || !lsc_b) {
+		free(lsc_r);
+		free(lsc_g);
+		free(lsc_b);
+		return -1; // 内存分配失败
+	}
+
+	for (S32 by = 0; by < blk_height; ++by) {
+		for (S32 bx = 0; bx < blk_width; ++bx) {
+			U32 sum_r = 0, sum_g = 0, sum_b = 0;
+			S32 count = 0;
+
+			for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
+				for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
+					sum_r += img[y * width + x].r;
+					sum_g += img[y * width + x].g;
+					sum_b += img[y * width + x].b;
+					++count;
+				}
+			}
+
+			U16 avg_r = sum_r / count;
+			U16 avg_g = sum_g / count;
+			U16 avg_b = sum_b / count;
+
+			lsc_r[by * blk_width + bx] = avg_r;
+			lsc_g[by * blk_width + bx] = avg_g;
+			lsc_b[by * blk_width + bx] = avg_b;
+
+			// 将该块内的所有像素值替换成该块的均值
+			for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
+				for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
+					img[y * width + x].r = avg_r;
+					img[y * width + x].g = avg_g;
+					img[y * width + x].b = avg_b;
+				}
+			}
+		}
+	}
+
+	free(lsc_r);
+	free(lsc_g);
+	free(lsc_b);
+
+	return 0;
+}
+
+
+U8 search_max(RGB* img)
+{
+	U8 max = 0;
+	U32 pos_x = 0, pos_y = 0;
+	RGB* pixel = img;
+
+	for (U32 y = 0; y < height; y++) {
+		for (U32 x = 0; x < width; x++) {
+			if (pixel->r > max) {
+				max = pixel->r;
+				pos_x = x;
+				pos_y = y;
+			}
+			else if (pixel->g > max) {
+				max = pixel->g;
+				pos_x = x;
+				pos_y = y;
+			}
+			else if (pixel->b > max) {
+				max = pixel->b;
+				pos_x = x;
+				pos_y = y;
+			}
+			pixel++;
+		}
+	}
+
+	LOG("Max value: %u at position (%u, %u) with RGB(%u, %u, %u).", max, pos_x, pos_y, 
+		img[pos_y * width + pos_x].r, img[pos_y * width + pos_x].g, img[pos_y * width + pos_x].b);
+
+	return max;
 }
 
 S32 calc_interpolation_array(S32* array_x, S32* array_y, S32 size, S32 x)

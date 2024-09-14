@@ -75,6 +75,12 @@ float fast_sqrt(float number);
 
 int img_process(RGB* img);
 
+S32 calc_lsc(RGB* img);
+
+S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
+
+U8 search_max(RGB* img);
+
 RGB* load_bmp(const char* filename);
 
 void save_bmp(const char* filename, RGB* img, int width, int height);
