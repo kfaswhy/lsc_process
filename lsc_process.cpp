@@ -11,6 +11,8 @@ int width = 0;
 int blk_width = 17;
 int blk_height = 27;
 
+U8 output_block_img = 0;
+
 U16* lsc_r = NULL;
 U16* lsc_g = NULL;
 U16* lsc_b = NULL;
@@ -49,7 +51,7 @@ int img_process(RGB* img)
 
 	//图像分块并计算均值
 	enblock(img, blk_width, blk_height);
-	save_bmp("2.bmp", img, width, height);
+	
 
 
 	return 0;
@@ -96,17 +98,27 @@ S32 enblock(RGB* img, S32 blk_width, S32 blk_height)
 			lsc_g[by * blk_width + bx] = avg_g;
 			lsc_b[by * blk_width + bx] = avg_b;
 
-			// 将该块内的所有像素值替换成该块的均值
-			for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
-				for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
-					img[y * width + x].r = avg_r;
-					img[y * width + x].g = avg_g;
-					img[y * width + x].b = avg_b;
-				}
-			}
+
 		}
 	}
 
+	if (1 == output_block_img)
+	{
+		for (S32 by = 0; by < blk_height; ++by) {
+			for (S32 bx = 0; bx < blk_width; ++bx) {
+				// 将该块内的所有像素值替换成该块的均值
+				for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
+					for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
+						img[y * width + x].r = lsc_r[by * blk_width + bx];
+						img[y * width + x].g = lsc_g[by * blk_width + bx];
+						img[y * width + x].b = lsc_b[by * blk_width + bx];
+					}
+				}
+			}
+		}
+		save_bmp("2.bmp", img, width, height);
+	
+	}
 	free(lsc_r);
 	free(lsc_g);
 	free(lsc_b);
