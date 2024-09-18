@@ -68,9 +68,9 @@ typedef struct
 
 typedef struct _LSC
 {
-	U16* lsc_r;
-	U16* lsc_g;
-	U16* lsc_b;
+	U32* r_gain;
+	U32* g_gain;
+	U32* b_gain;
 }LSC;
 
 
@@ -85,7 +85,9 @@ float fast_sqrt(float number);
 int img_process(RGB* img);
 
 
-void calc_lsc();
+void do_lsc_cali(RGB* img, LSC* lsc);
+
+void calc_lsc(U32 max, LSC* lsc);
 
 S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 

@@ -5,20 +5,29 @@ BITMAPINFOHEADER infoHeader;
 int PaddingSize = 0;
 BYTE* pad = NULL;
 
+#define output_block_img  1
+
 int height = 0;
 int width = 0;
 
 int lsc_width = 17;
 int lsc_height = 27;
 
-#define output_block_img  1
+int gain_ratio_perent = 40;
 
-U16* lsc_r = NULL;
-U16* lsc_g = NULL;
-U16* lsc_b = NULL;
+LSC lsc = { 0 };
+U32 max = 0;
 
 int main()
 {
+	U32 a = 18;
+	U32 max = 255;
+	LOG("%u x 1024 = %u.", max, max * 1024);
+	max = max * 1024;
+
+	LOG("%u / %u = %u", max, a, max / a);
+
+
 
 	char cfg_setting[] = "setting.config";
 	//load_cfg(cfg_setting);
@@ -46,46 +55,156 @@ int main()
 int img_process(RGB* img)
 {
 	//查找最亮点
-	int max = search_max(img);
+	max = search_max(img);
 	
 	//图像分块并计算均值
 	enblock(img, lsc_width, lsc_height);
 	
 	//计算块通道增益
-	calc_lsc();
+	calc_lsc(max, &lsc);
+
+	//执行校正
+	do_lsc_cali(img, &lsc);
 
 
 	return 0;
 }
 
 
-void calc_lsc()
+void dump_lsc(LSC* lsc)
 {
+	for (S32 by = 0; by < lsc_height; ++by)
+	{
+		for (S32 bx = 0; bx < lsc_width; ++bx)
+		{
+
+		}
+	}
+
+	return;
+}
+void do_lsc_cali(RGB* img, LSC* lsc)
+{
+	U32 lum = 0;
+	U32 tmp = 0;
+	U32 tmp_gain = 0;
+	U32 ratio = 0;
+
+	//色彩校正
+	for (S32 by = 0; by < lsc_height; ++by)
+	{
+		for (S32 bx = 0; bx < lsc_width; ++bx)
+		{
+			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			{
+				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
+				{
+					lum = (img[y * width + x].r * 3 + img[y * width + x].g * 6 + img[y * width + x].b) / 10;
+					ratio = lum * 100 / max;
+
+					tmp = img[y * width + x].r * lsc->r_gain[by * lsc_width + bx] * ratio / 102400;
+					img[y * width + x].r = calc_min(tmp, 255);
+					
+					tmp = img[y * width + x].g * lsc->g_gain[by * lsc_width + bx] * ratio / 102400;
+					img[y * width + x].g = calc_min(tmp, 255);
+
+					tmp = img[y * width + x].b * lsc->b_gain[by * lsc_width + bx] * ratio / 102400;
+					img[y * width + x].b = calc_min(tmp, 255);
+				}
+			}
+		}
+	}
+	save_bmp("4_color_cali.bmp", img, width, height);
+
+	save_bmp("5_y_cali.bmp", img, width, height);
+}
+
+void calc_lsc(U32 max, LSC* lsc)
+{
+#ifdef output_block_img
+	U32 lsc_gain_max = 0;
+#endif
 	
+	for (S32 by = 0; by < lsc_height; ++by) 
+	{
+		for (S32 bx = 0; bx < lsc_width; ++bx) 
+		{
+			int index = by * lsc_width + bx;
+			lsc->r_gain[index] = (max << 10) / lsc->r_gain[index];
+			lsc->g_gain[index] = (max << 10) / lsc->g_gain[index];
+			lsc->b_gain[index] = (max << 10) / lsc->b_gain[index];
+
+			//lsc->r_gain[index] = (lsc->r_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
+			//lsc->g_gain[index] = (lsc->g_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
+			//lsc->b_gain[index] = (lsc->b_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
+#ifdef output_block_img
+			lsc_gain_max = calc_max(lsc_gain_max, lsc->r_gain[index]);
+			lsc_gain_max = calc_max(lsc_gain_max, lsc->g_gain[index]);
+			lsc_gain_max = calc_max(lsc_gain_max, lsc->b_gain[index]);
+#endif
+		}
+	}
+
 	
+
+#ifdef output_block_img
+
+	RGB* tmp = (RGB*)malloc(sizeof(RGB) * height * width);
+	if (tmp == NULL)
+	{
+		LOG("ERROR.");
+		return;
+	}
+	for (S32 by = 0; by < lsc_height; ++by) {
+		for (S32 bx = 0; bx < lsc_width; ++bx) {
+			// 将该块内的所有像素值替换成该块的均值
+			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			{
+				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
+				{
+					//y = calc_min(y, height);
+					//x = calc_min(x, width); 
+					tmp[y * width + x].r = lsc->r_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
+					tmp[y * width + x].g = lsc->g_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
+					tmp[y * width + x].b = lsc->b_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
+				}
+			}
+		}
+	}
+	save_bmp("3_lsc.bmp", tmp, width, height);
+
+	
+#endif
+
 	return;
 }
 
 S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 {
 
-	lsc_r = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
-	lsc_g = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
-	lsc_b = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
-	if (!lsc_r || !lsc_g || !lsc_b) {
-		free(lsc_r);
-		free(lsc_g);
-		free(lsc_b);
+	lsc.r_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc.g_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc.b_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	if (!lsc.r_gain || !lsc.g_gain || !lsc.b_gain) {
+		free(lsc.r_gain);
+		free(lsc.g_gain);
+		free(lsc.b_gain);
 		return -1; // 内存分配失败
 	}
 
-	for (S32 by = 0; by < lsc_height; ++by) {
-		for (S32 bx = 0; bx < lsc_width; ++bx) {
+	for (S32 by = 0; by < lsc_height; ++by) 
+	{
+		for (S32 bx = 0; bx < lsc_width; ++bx) 
+		{
 			U32 sum_r = 0, sum_g = 0, sum_b = 0;
 			S32 count = 0;
 
-			for (S32 y = by * (height / lsc_height); y < (by + 1) * (height / lsc_height); ++y) {
-				for (S32 x = bx * (width / lsc_width); x < (bx + 1) * (width / lsc_width); ++x) {
+			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			{
+				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
+				{
+					//y = calc_min(y, height);
+					//x = calc_min(x, width);
 					sum_r += img[y * width + x].r;
 					sum_g += img[y * width + x].g;
 					sum_b += img[y * width + x].b;
@@ -97,35 +216,44 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 			U16 avg_g = sum_g / count;
 			U16 avg_b = sum_b / count;
 
-			lsc_r[by * lsc_width + bx] = avg_r;
-			lsc_g[by * lsc_width + bx] = avg_g;
-			lsc_b[by * lsc_width + bx] = avg_b;
+			lsc.r_gain[by * lsc_width + bx] = avg_r;
+			lsc.g_gain[by * lsc_width + bx] = avg_g;
+			lsc.b_gain[by * lsc_width + bx] = avg_b;
 
 
 		}
 	}
 
 #ifdef output_block_img
+	RGB* tmp = (RGB*)malloc(sizeof(RGB) * height * width);
+	if (tmp == NULL)
 	{
-		for (S32 by = 0; by < lsc_height; ++by) {
-			for (S32 bx = 0; bx < lsc_width; ++bx) {
-				// 将该块内的所有像素值替换成该块的均值
-				for (S32 y = by * (height / lsc_height); y < (by + 1) * (height / lsc_height); ++y) {
-					for (S32 x = bx * (width / lsc_width); x < (bx + 1) * (width / lsc_width); ++x) {
-						img[y * width + x].r = lsc_r[by * lsc_width + bx];
-						img[y * width + x].g = lsc_g[by * lsc_width + bx];
-						img[y * width + x].b = lsc_b[by * lsc_width + bx];
-					}
+		LOG("ERROR.");
+		return ERROR;
+	}
+	for (S32 by = 0; by < lsc_height; ++by) {
+		for (S32 bx = 0; bx < lsc_width; ++bx) {
+			// 将该块内的所有像素值替换成该块的均值
+			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			{
+				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
+				{
+					//y = calc_min(y, height);
+					//x = calc_min(x, width); 
+					tmp[y * width + x].r = lsc.r_gain[by * lsc_width + bx];
+					tmp[y * width + x].g = lsc.g_gain[by * lsc_width + bx];
+					tmp[y * width + x].b = lsc.b_gain[by * lsc_width + bx];
 				}
 			}
 		}
-		save_bmp("2.bmp", img, width, height);
 	}
-#endif
-	free(lsc_r);
-	free(lsc_g);
-	free(lsc_b);
+	save_bmp("2_enblock.bmp", tmp, width, height);
 
+#endif
+	//free(lsc.r_gain);
+	//free(lsc.g_gain);
+	//free(lsc.b_gain);
+	LOG("done.");
 	return 0;
 }
 
