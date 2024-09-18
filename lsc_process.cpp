@@ -8,10 +8,10 @@ BYTE* pad = NULL;
 int height = 0;
 int width = 0;
 
-int blk_width = 17;
-int blk_height = 27;
+int lsc_width = 17;
+int lsc_height = 27;
 
-U8 output_block_img = 0;
+#define output_block_img  1
 
 U16* lsc_r = NULL;
 U16* lsc_g = NULL;
@@ -48,27 +48,30 @@ int img_process(RGB* img)
 	//查找最亮点
 	int max = search_max(img);
 	
-
 	//图像分块并计算均值
-	enblock(img, blk_width, blk_height);
+	enblock(img, lsc_width, lsc_height);
 	
+	//计算块通道增益
+	calc_lsc();
 
 
 	return 0;
 }
 
 
-S32 calc_lsc(RGB* img)
+void calc_lsc()
 {
-	return 0;
+	
+	
+	return;
 }
 
-S32 enblock(RGB* img, S32 blk_width, S32 blk_height)
+S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 {
 
-	lsc_r = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
-	lsc_g = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
-	lsc_b = (U16*)malloc(sizeof(U16) * blk_height * blk_width);
+	lsc_r = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
+	lsc_g = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
+	lsc_b = (U16*)malloc(sizeof(U16) * lsc_height * lsc_width);
 	if (!lsc_r || !lsc_g || !lsc_b) {
 		free(lsc_r);
 		free(lsc_g);
@@ -76,13 +79,13 @@ S32 enblock(RGB* img, S32 blk_width, S32 blk_height)
 		return -1; // 内存分配失败
 	}
 
-	for (S32 by = 0; by < blk_height; ++by) {
-		for (S32 bx = 0; bx < blk_width; ++bx) {
+	for (S32 by = 0; by < lsc_height; ++by) {
+		for (S32 bx = 0; bx < lsc_width; ++bx) {
 			U32 sum_r = 0, sum_g = 0, sum_b = 0;
 			S32 count = 0;
 
-			for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
-				for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
+			for (S32 y = by * (height / lsc_height); y < (by + 1) * (height / lsc_height); ++y) {
+				for (S32 x = bx * (width / lsc_width); x < (bx + 1) * (width / lsc_width); ++x) {
 					sum_r += img[y * width + x].r;
 					sum_g += img[y * width + x].g;
 					sum_b += img[y * width + x].b;
@@ -94,31 +97,31 @@ S32 enblock(RGB* img, S32 blk_width, S32 blk_height)
 			U16 avg_g = sum_g / count;
 			U16 avg_b = sum_b / count;
 
-			lsc_r[by * blk_width + bx] = avg_r;
-			lsc_g[by * blk_width + bx] = avg_g;
-			lsc_b[by * blk_width + bx] = avg_b;
+			lsc_r[by * lsc_width + bx] = avg_r;
+			lsc_g[by * lsc_width + bx] = avg_g;
+			lsc_b[by * lsc_width + bx] = avg_b;
 
 
 		}
 	}
 
-	if (1 == output_block_img)
+#ifdef output_block_img
 	{
-		for (S32 by = 0; by < blk_height; ++by) {
-			for (S32 bx = 0; bx < blk_width; ++bx) {
+		for (S32 by = 0; by < lsc_height; ++by) {
+			for (S32 bx = 0; bx < lsc_width; ++bx) {
 				// 将该块内的所有像素值替换成该块的均值
-				for (S32 y = by * (height / blk_height); y < (by + 1) * (height / blk_height); ++y) {
-					for (S32 x = bx * (width / blk_width); x < (bx + 1) * (width / blk_width); ++x) {
-						img[y * width + x].r = lsc_r[by * blk_width + bx];
-						img[y * width + x].g = lsc_g[by * blk_width + bx];
-						img[y * width + x].b = lsc_b[by * blk_width + bx];
+				for (S32 y = by * (height / lsc_height); y < (by + 1) * (height / lsc_height); ++y) {
+					for (S32 x = bx * (width / lsc_width); x < (bx + 1) * (width / lsc_width); ++x) {
+						img[y * width + x].r = lsc_r[by * lsc_width + bx];
+						img[y * width + x].g = lsc_g[by * lsc_width + bx];
+						img[y * width + x].b = lsc_b[by * lsc_width + bx];
 					}
 				}
 			}
 		}
 		save_bmp("2.bmp", img, width, height);
-	
 	}
+#endif
 	free(lsc_r);
 	free(lsc_g);
 	free(lsc_b);

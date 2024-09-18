@@ -36,6 +36,8 @@ U8 prog_print = 1;
 U32 t0;
 U32 t1;
 
+
+
 typedef enum SAMP_METHOD
 {
 	NEAREST = 0,
@@ -64,6 +66,13 @@ typedef struct
 	BYTE a;
 }RGBA;
 
+typedef struct _LSC
+{
+	U16* lsc_r;
+	U16* lsc_g;
+	U16* lsc_b;
+}LSC;
+
 
 int main();
 
@@ -75,7 +84,8 @@ float fast_sqrt(float number);
 
 int img_process(RGB* img);
 
-S32 calc_lsc(RGB* img);
+
+void calc_lsc();
 
 S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 
