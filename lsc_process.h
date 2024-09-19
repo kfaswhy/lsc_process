@@ -22,6 +22,8 @@
 #define U8MAX (255)
 #define U8MIN (0)
 
+#define U10_FACTOR (1024)
+
 #define M_PI 3.1415926
 
 #define calc_min(a,b) ((a)>(b)?(b):(a))
@@ -55,11 +57,11 @@ typedef struct _RGB
 	BYTE r;
 }RGB;
 
-typedef struct _LUM_EDGE
+typedef struct _RGB_EDGE
 {
-	U8 min;
-	U8 max;
-}LUM_EDGE;
+	RGB min;
+	RGB max;
+}RGB_EDGE;
 
 typedef struct {
 	S32 h;
@@ -102,7 +104,7 @@ void calc_lsc();
 
 S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 
-LUM_EDGE search_edge(RGB* img);
+RGB_EDGE search_edge(RGB* img);
 
 RGB* load_bmp(const char* filename);
 
