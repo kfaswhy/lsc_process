@@ -106,6 +106,10 @@ S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 
 RGB_EDGE search_edge(RGB* img);
 
+U32 bilinear_interp(U16 left_top, U16 left_bottom, U16 right_top, U16 right_bottom, double x_weight, double y_weight);
+
+U8 gamma(U8 a);
+
 RGB* load_bmp(const char* filename);
 
 void save_bmp(const char* filename, RGB* img, int width, int height);
