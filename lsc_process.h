@@ -7,6 +7,9 @@
 #include <windows.h> 
 #include <time.h>
 #include <omp.h>
+#include <io.h>
+#include <process.h>
+//#include <unistd.h>
 #include "cJSON.h"
 
 #define U64 unsigned long long
@@ -85,9 +88,11 @@ float fast_sqrt(float number);
 int img_process(RGB* img);
 
 
-void do_lsc_cali(RGB* img, LSC* lsc);
+void dump_lsc();
 
-void calc_lsc(U32 max, LSC* lsc);
+void do_lsc_cali(RGB* img);
+
+void calc_lsc();
 
 S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 

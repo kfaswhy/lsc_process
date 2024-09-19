@@ -5,30 +5,22 @@ BITMAPINFOHEADER infoHeader;
 int PaddingSize = 0;
 BYTE* pad = NULL;
 
-#define output_block_img  1
+#define debug_mode  1
 
 int height = 0;
 int width = 0;
 
-int lsc_width = 17;
+int lsc_width = 17; 
 int lsc_height = 27;
 
 int gain_ratio_perent = 40;
 
-LSC lsc = { 0 };
+LSC lsc_color = { 0 };
+LSC lsc_lum = { 0 };
 U32 max = 0;
 
 int main()
 {
-	U32 a = 18;
-	U32 max = 255;
-	LOG("%u x 1024 = %u.", max, max * 1024);
-	max = max * 1024;
-
-	LOG("%u / %u = %u", max, a, max / a);
-
-
-
 	char cfg_setting[] = "setting.config";
 	//load_cfg(cfg_setting);
 
@@ -61,34 +53,331 @@ int img_process(RGB* img)
 	enblock(img, lsc_width, lsc_height);
 	
 	//计算块通道增益
-	calc_lsc(max, &lsc);
+	calc_lsc();
 
 	//执行校正
-	do_lsc_cali(img, &lsc);
+	do_lsc_cali(img);
 
+	dump_lsc();
 
 	return 0;
 }
 
 
-void dump_lsc(LSC* lsc)
+U8 gamma(U8 a)
 {
+	return (U8)((U32)355 * a / (a + 100));
+}
+
+void dump_lsc()
+{
+	long file_size = 0;
+
+	// 计算新的文件大小
+	long new_size = 0;
+	
 	for (S32 by = 0; by < lsc_height; ++by)
 	{
 		for (S32 bx = 0; bx < lsc_width; ++bx)
 		{
+			FILE* file = fopen("lsc_output.csv", "w");
+			if (!file) {
+				perror("Failed to open file");
+				return;
+			}
 
+//LSC_R
+#if 1
+			fprintf(file, "LSC_R\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					int index = by * lsc_width + bx;
+					fprintf(file, "%u", ((U64)lsc_color.r_gain[index] * lsc_lum.r_gain[index] + 512) >> 10);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//LSC_G
+#if 1
+			fprintf(file, "LSC_G\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					int index = by * lsc_width + bx;
+					fprintf(file, "%u", ((U64)lsc_color.g_gain[index] * lsc_lum.g_gain[index] + 512) >> 10);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//LSC_B
+#if 1
+			fprintf(file, "LSC_B\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					int index = by * lsc_width + bx;
+					fprintf(file, "%u", ((U64)lsc_color.b_gain[index] * lsc_lum.b_gain[index] + 512) >> 10);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//color_shading_R
+#if 1
+			fprintf(file, "color_shading_R\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u",	lsc_color.r_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//color_shading_G
+#if 1
+			fprintf(file, "color_shading_G\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u", lsc_color.g_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//color_shading_B
+#if 1
+			fprintf(file, "color_shading_B\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u", lsc_color.b_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//luma_shading_R
+#if 1
+			fprintf(file, "luma_shading_R\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u", lsc_lum.r_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//luma_shading_G
+#if 1
+			fprintf(file, "luma_shading_G\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u", lsc_lum.g_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+
+//luma_shading_B
+#if 1
+			fprintf(file, "luma_shading_B\n");
+			for (S32 by = lsc_height - 1; by >= 0; --by) {
+				for (S32 bx = 0; bx < lsc_width; ++bx) {
+					fprintf(file, "%u", lsc_lum.b_gain[by * lsc_width + bx]);
+					//if (bx < lsc_width - 1) 
+					{
+						fprintf(file, ",");
+					}
+				}
+				fprintf(file, "\n");
+			}
+
+			fseek(file, 0, SEEK_END);
+			file_size = ftell(file);
+
+			// 计算新的文件大小
+			new_size = file_size - 3;
+			if (new_size < 0) new_size = 0;
+			// 截断文件
+			if (_chsize(_fileno(file), new_size) == -1) {
+				perror("Error truncating file");
+				fclose(file);
+				return;
+			}
+			// 移动文件指针到文件末尾
+			fseek(file, 0, SEEK_END);
+			fprintf(file, "\n\n");
+#endif
+			fclose(file);
 		}
 	}
 
 	return;
 }
-void do_lsc_cali(RGB* img, LSC* lsc)
+void do_lsc_cali(RGB* img)
 {
 	U32 lum = 0;
 	U32 tmp = 0;
 	U32 tmp_gain = 0;
-	U32 ratio = 0;
 
 	//色彩校正
 	for (S32 by = 0; by < lsc_height; ++by)
@@ -99,58 +388,73 @@ void do_lsc_cali(RGB* img, LSC* lsc)
 			{
 				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
 				{
-					lum = (img[y * width + x].r * 3 + img[y * width + x].g * 6 + img[y * width + x].b) / 10;
-					ratio = lum * 100 / max;
 
-					tmp = img[y * width + x].r * lsc->r_gain[by * lsc_width + bx] * ratio / 102400;
+					tmp = img[y * width + x].r * lsc_color.r_gain[by * lsc_width + bx] / 1024;
 					img[y * width + x].r = calc_min(tmp, 255);
 					
-					tmp = img[y * width + x].g * lsc->g_gain[by * lsc_width + bx] * ratio / 102400;
+					tmp = img[y * width + x].g * lsc_color.g_gain[by * lsc_width + bx] / 1024;
 					img[y * width + x].g = calc_min(tmp, 255);
 
-					tmp = img[y * width + x].b * lsc->b_gain[by * lsc_width + bx] * ratio / 102400;
+					tmp = img[y * width + x].b * lsc_color.b_gain[by * lsc_width + bx] / 1024;
 					img[y * width + x].b = calc_min(tmp, 255);
 				}
 			}
 		}
 	}
-	save_bmp("4_color_cali.bmp", img, width, height);
+	save_bmp("5_color_cali.bmp", img, width, height);
 
-	save_bmp("5_y_cali.bmp", img, width, height);
+	save_bmp("6_y_cali.bmp", img, width, height);
 }
 
-void calc_lsc(U32 max, LSC* lsc)
+void calc_lsc()
 {
-#ifdef output_block_img
-	U32 lsc_gain_max = 0;
+#ifdef debug_mode
+	U32 color_shading_max = 0;
+	U32 luma_shading_max = 0;
 #endif
-	
+	//计算 color_shading
+	U32 max_color = 0;
 	for (S32 by = 0; by < lsc_height; ++by) 
 	{
 		for (S32 bx = 0; bx < lsc_width; ++bx) 
 		{
 			int index = by * lsc_width + bx;
-			lsc->r_gain[index] = (max << 10) / lsc->r_gain[index];
-			lsc->g_gain[index] = (max << 10) / lsc->g_gain[index];
-			lsc->b_gain[index] = (max << 10) / lsc->b_gain[index];
+			max_color = 0;
 
-			//lsc->r_gain[index] = (lsc->r_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
-			//lsc->g_gain[index] = (lsc->g_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
-			//lsc->b_gain[index] = (lsc->b_gain[index] - 1024) * gain_ratio_perent / 100 + 1024;
-#ifdef output_block_img
-			lsc_gain_max = calc_max(lsc_gain_max, lsc->r_gain[index]);
-			lsc_gain_max = calc_max(lsc_gain_max, lsc->g_gain[index]);
-			lsc_gain_max = calc_max(lsc_gain_max, lsc->b_gain[index]);
+			//块内最大值
+			max_color = calc_max(max_color, lsc_lum.r_gain[index]);
+			max_color = calc_max(max_color, lsc_lum.g_gain[index]);
+			max_color = calc_max(max_color, lsc_lum.b_gain[index]);
+
+			lsc_color.r_gain[index] = max_color * 1024 / lsc_lum.r_gain[index];
+			lsc_color.g_gain[index] = max_color * 1024 / lsc_lum.g_gain[index];
+			lsc_color.b_gain[index] = max_color * 1024 / lsc_lum.b_gain[index];
+
+#ifdef debug_mode
+			color_shading_max = calc_max(color_shading_max, lsc_color.r_gain[index]);
+			color_shading_max = calc_max(color_shading_max, lsc_color.g_gain[index]);
+			color_shading_max = calc_max(color_shading_max, lsc_color.b_gain[index]);
+#endif
+
+			lsc_lum.r_gain[index] = (max << 10) / max_color;
+			lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
+			lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
+
+#ifdef debug_mode
+			luma_shading_max = calc_max(luma_shading_max, lsc_lum.r_gain[index]);
+			//luma_shading_max = calc_max(luma_shading_max, lsc_lum.g_gain[index]);
+			//luma_shading_max = calc_max(luma_shading_max, lsc_lum.b_gain[index]);
 #endif
 		}
 	}
 
-	
 
-#ifdef output_block_img
-
-	RGB* tmp = (RGB*)malloc(sizeof(RGB) * height * width);
-	if (tmp == NULL)
+#ifdef debug_mode
+	// 输出color_shading
+	RGB* tmp_color = (RGB*)malloc(sizeof(RGB) * height * width);
+	RGB* tmp_luma = (RGB*)malloc(sizeof(RGB) * height * width);
+	U32 tmp_channel = 0;
+	if (tmp_color == NULL)
 	{
 		LOG("ERROR.");
 		return;
@@ -162,18 +466,30 @@ void calc_lsc(U32 max, LSC* lsc)
 			{
 				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
 				{
-					//y = calc_min(y, height);
-					//x = calc_min(x, width); 
-					tmp[y * width + x].r = lsc->r_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
-					tmp[y * width + x].g = lsc->g_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
-					tmp[y * width + x].b = lsc->b_gain[by * lsc_width + bx] * 255 / lsc_gain_max;
+					tmp_channel = lsc_color.r_gain[by * lsc_width + bx] * 255 / color_shading_max;
+					tmp_color[y * width + x].r = calc_min(255, tmp_channel);
+					tmp_color[y * width + x].r = gamma(tmp_color[y * width + x].r);
+
+					tmp_channel = lsc_color.g_gain[by * lsc_width + bx] * 255 / color_shading_max;
+					tmp_color[y * width + x].g = calc_min(255, tmp_channel);
+					tmp_color[y * width + x].g = gamma(tmp_color[y * width + x].g);
+
+					tmp_channel = lsc_color.b_gain[by * lsc_width + bx] * 255 / color_shading_max;
+					tmp_color[y * width + x].b = calc_min(255, tmp_channel);
+					tmp_color[y * width + x].b = gamma(tmp_color[y * width + x].b);
+
+					tmp_channel = lsc_lum.r_gain[by * lsc_width + bx] * 255 / luma_shading_max;
+					tmp_luma[y * width + x].r = calc_min(255, tmp_channel);
+					tmp_luma[y * width + x].g = tmp_luma[y * width + x].r;
+					tmp_luma[y * width + x].b = tmp_luma[y * width + x].r;
+
 				}
 			}
 		}
 	}
-	save_bmp("3_lsc.bmp", tmp, width, height);
+	save_bmp("3_color_gain.bmp", tmp_color, width, height);
+	save_bmp("4_luma_gain.bmp", tmp_luma, width, height);
 
-	
 #endif
 
 	return;
@@ -182,13 +498,16 @@ void calc_lsc(U32 max, LSC* lsc)
 S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 {
 
-	lsc.r_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
-	lsc.g_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
-	lsc.b_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
-	if (!lsc.r_gain || !lsc.g_gain || !lsc.b_gain) {
-		free(lsc.r_gain);
-		free(lsc.g_gain);
-		free(lsc.b_gain);
+	lsc_lum.r_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc_lum.g_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc_lum.b_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc_color.r_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc_color.g_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	lsc_color.b_gain = (U32*)malloc(sizeof(U32) * lsc_height * lsc_width);
+	if (!lsc_lum.r_gain || !lsc_lum.g_gain || !lsc_lum.b_gain) {
+		free(lsc_lum.r_gain);
+		free(lsc_lum.g_gain);
+		free(lsc_lum.b_gain);
 		return -1; // 内存分配失败
 	}
 
@@ -216,15 +535,13 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 			U16 avg_g = sum_g / count;
 			U16 avg_b = sum_b / count;
 
-			lsc.r_gain[by * lsc_width + bx] = avg_r;
-			lsc.g_gain[by * lsc_width + bx] = avg_g;
-			lsc.b_gain[by * lsc_width + bx] = avg_b;
-
-
+			lsc_lum.r_gain[by * lsc_width + bx] = avg_r;
+			lsc_lum.g_gain[by * lsc_width + bx] = avg_g;
+			lsc_lum.b_gain[by * lsc_width + bx] = avg_b;
 		}
 	}
 
-#ifdef output_block_img
+#ifdef debug_mode
 	RGB* tmp = (RGB*)malloc(sizeof(RGB) * height * width);
 	if (tmp == NULL)
 	{
@@ -240,9 +557,9 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 				{
 					//y = calc_min(y, height);
 					//x = calc_min(x, width); 
-					tmp[y * width + x].r = lsc.r_gain[by * lsc_width + bx];
-					tmp[y * width + x].g = lsc.g_gain[by * lsc_width + bx];
-					tmp[y * width + x].b = lsc.b_gain[by * lsc_width + bx];
+					tmp[y * width + x].r = lsc_lum.r_gain[by * lsc_width + bx];
+					tmp[y * width + x].g = lsc_lum.g_gain[by * lsc_width + bx];
+					tmp[y * width + x].b = lsc_lum.b_gain[by * lsc_width + bx];
 				}
 			}
 		}
