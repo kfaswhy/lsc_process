@@ -17,7 +17,8 @@ int gain_ratio_perent = 40;
 
 LSC lsc_color = { 0 };
 LSC lsc_lum = { 0 };
-LUM_EDGE edge = { 0 };
+RGB_EDGE edge = { 0 };
+
 
 int main()
 {
@@ -436,36 +437,60 @@ void calc_lsc()
 #endif
 	//计算 shading
 	U32 max_color = 0;
+	//U32 r_gain, b_gain, g_gain;
+	//float lum_ratio;
+
 	for (S32 by = 0; by < lsc_height; ++by) 
 	{
 		for (S32 bx = 0; bx < lsc_width; ++bx) 
 		{
 			int index = by * lsc_width + bx;
-			max_color = 0;
 
-			//块内最大值
-			max_color = calc_max(max_color, lsc_lum.r_gain[index]);
-			max_color = calc_max(max_color, lsc_lum.g_gain[index]);
-			max_color = calc_max(max_color, lsc_lum.b_gain[index]);
+			//r_gain = edge.max.r / lsc_lum.r_gain[index];
+			if (edge.max.r >= edge.max.g && edge.max.r >= edge.max.b)
+			{
+				//主色彩是红色
+				//lum_ratio = (float)lsc_lum.r_gain[index] / edge.max.r;
+				lsc_color.r_gain[index] = U10_FACTOR;
+				lsc_color.g_gain[index] = (U32)U10_FACTOR * edge.max.g * lsc_lum.r_gain[index] / edge.max.r / lsc_lum.g_gain[index];
+				lsc_color.b_gain[index] = (U32)U10_FACTOR * edge.max.b * lsc_lum.r_gain[index] / edge.max.r / lsc_lum.b_gain[index];
+				max_color = lsc_lum.r_gain[index];
+				lsc_lum.r_gain[index] = ((edge.max.r - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
+				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 
-			lsc_color.r_gain[index] = max_color * 1024 / lsc_lum.r_gain[index];
-			lsc_color.g_gain[index] = max_color * 1024 / lsc_lum.g_gain[index];
-			lsc_color.b_gain[index] = max_color * 1024 / lsc_lum.b_gain[index];
+			}
+			else if(edge.max.g >= edge.max.r && edge.max.g >= edge.max.b)
+			{
+				//主色彩是绿色
+				//lum_ratio = (float)lsc_lum.g_gain[index] / edge.max.r;
+				lsc_color.g_gain[index] = U10_FACTOR;
+				lsc_color.r_gain[index] = (U32)U10_FACTOR * edge.max.r * lsc_lum.g_gain[index] / edge.max.g / lsc_lum.r_gain[index];
+				lsc_color.b_gain[index] = (U32)U10_FACTOR * edge.max.b * lsc_lum.g_gain[index] / edge.max.g / lsc_lum.b_gain[index];
+				max_color = lsc_lum.g_gain[index];
+				lsc_lum.r_gain[index] = ((edge.max.g - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
+				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
+
+			}
+			else if (edge.max.b >= edge.max.r && edge.max.b >= edge.max.g)
+			{
+				lsc_color.b_gain[index] = U10_FACTOR;
+				lsc_color.g_gain[index] = (U32)U10_FACTOR * edge.max.g * lsc_lum.b_gain[index] / edge.max.b / lsc_lum.g_gain[index];
+				lsc_color.r_gain[index] = (U32)U10_FACTOR * edge.max.r * lsc_lum.b_gain[index] / edge.max.b / lsc_lum.r_gain[index];
+				max_color = lsc_lum.b_gain[index];
+				lsc_lum.r_gain[index] = ((edge.max.b - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
+				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
+			}
 
 #ifdef debug_mode
 			color_shading_max = calc_max(color_shading_max, lsc_color.r_gain[index]);
 			color_shading_max = calc_max(color_shading_max, lsc_color.g_gain[index]);
 			color_shading_max = calc_max(color_shading_max, lsc_color.b_gain[index]);
-#endif
-			
-			lsc_lum.r_gain[index] = ((edge.max - max_color) * gain_ratio_perent / 100 + max_color)*1024/ max_color;
-			lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
-			lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 
-#ifdef debug_mode
+			//luma_gain 三个通道相同，
 			luma_shading_max = calc_max(luma_shading_max, lsc_lum.r_gain[index]);
-			//luma_shading_max = calc_max(luma_shading_max, lsc_lum.g_gain[index]);
-			//luma_shading_max = calc_max(luma_shading_max, lsc_lum.b_gain[index]);
 #endif
 		}
 	}
@@ -600,8 +625,7 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 	return 0;
 }
 
-
-LUM_EDGE search_edge(RGB* img)
+RGB_EDGE search_edge(RGB* img)
 {
 	U8 max = 0;
 	U8 min = 255;
@@ -651,9 +675,13 @@ LUM_EDGE search_edge(RGB* img)
 	LOG("Min value: %u at position (%u, %u) with RGB(%u, %u, %u).", min, pos_x_min, pos_y_min,
 		img[pos_y_min * width + pos_x_min].r, img[pos_y_min * width + pos_x_min].g, img[pos_y_min * width + pos_x_min].b);
 	
-	LUM_EDGE tmp = { 0 };
-	tmp.min = min;
-	tmp.max = max;
+	RGB_EDGE tmp = { 0 };
+	tmp.min.r = img[pos_y_min * width + pos_x_min].r;
+	tmp.min.g = img[pos_y_min * width + pos_x_min].g;
+	tmp.min.b = img[pos_y_min * width + pos_x_min].b;
+	tmp.max.r = img[pos_y_max * width + pos_x_max].r;
+	tmp.max.g = img[pos_y_max * width + pos_x_max].g;
+	tmp.max.b = img[pos_y_max * width + pos_x_max].b;
 	return tmp;
 }
 
