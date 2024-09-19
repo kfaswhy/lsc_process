@@ -10,14 +10,14 @@ BYTE* pad = NULL;
 int height = 0;
 int width = 0;
 
-int lsc_width = 17; 
-int lsc_height = 27;
+int lsc_width = 27; 
+int lsc_height = 17;
 
 int gain_ratio_perent = 40;
 
 LSC lsc_color = { 0 };
 LSC lsc_lum = { 0 };
-U32 max = 0;
+LUM_EDGE edge = { 0 };
 
 int main()
 {
@@ -42,12 +42,10 @@ int main()
 	return 0;
 }
 
-
-
 int img_process(RGB* img)
 {
 	//查找最亮点
-	max = search_max(img);
+	edge = search_edge(img);
 	
 	//图像分块并计算均值
 	enblock(img, lsc_width, lsc_height);
@@ -370,7 +368,7 @@ void dump_lsc()
 			fclose(file);
 		}
 	}
-
+	LOG("Done.");
 	return;
 }
 void do_lsc_cali(RGB* img)
@@ -389,6 +387,7 @@ void do_lsc_cali(RGB* img)
 				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
 				{
 
+					
 					tmp = img[y * width + x].r * lsc_color.r_gain[by * lsc_width + bx] / 1024;
 					img[y * width + x].r = calc_min(tmp, 255);
 					
@@ -403,7 +402,30 @@ void do_lsc_cali(RGB* img)
 	}
 	save_bmp("5_color_cali.bmp", img, width, height);
 
+	//亮度校正
+	for (S32 by = 0; by < lsc_height; ++by)
+	{
+		for (S32 bx = 0; bx < lsc_width; ++bx)
+		{
+			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			{
+				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
+				{
+					tmp = img[y * width + x].r * lsc_lum.r_gain[by * lsc_width + bx] / 1024;
+					img[y * width + x].r = calc_min(tmp, 255);
+
+					tmp = img[y * width + x].g * lsc_lum.g_gain[by * lsc_width + bx] / 1024;
+					img[y * width + x].g = calc_min(tmp, 255);
+
+					tmp = img[y * width + x].b * lsc_lum.b_gain[by * lsc_width + bx] / 1024;
+					img[y * width + x].b = calc_min(tmp, 255);
+				}
+			}
+		}
+	}
+
 	save_bmp("6_y_cali.bmp", img, width, height);
+	LOG("Done.");
 }
 
 void calc_lsc()
@@ -412,7 +434,7 @@ void calc_lsc()
 	U32 color_shading_max = 0;
 	U32 luma_shading_max = 0;
 #endif
-	//计算 color_shading
+	//计算 shading
 	U32 max_color = 0;
 	for (S32 by = 0; by < lsc_height; ++by) 
 	{
@@ -435,8 +457,8 @@ void calc_lsc()
 			color_shading_max = calc_max(color_shading_max, lsc_color.g_gain[index]);
 			color_shading_max = calc_max(color_shading_max, lsc_color.b_gain[index]);
 #endif
-
-			lsc_lum.r_gain[index] = (max << 10) / max_color;
+			
+			lsc_lum.r_gain[index] = ((edge.max - max_color) * gain_ratio_perent / 100 + max_color)*1024/ max_color;
 			lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
 			lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 
@@ -492,6 +514,7 @@ void calc_lsc()
 
 #endif
 
+	LOG("Done.");
 	return;
 }
 
@@ -527,6 +550,9 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 					sum_r += img[y * width + x].r;
 					sum_g += img[y * width + x].g;
 					sum_b += img[y * width + x].b;
+					img[y * width + x].r = calc_max(1, img[y * width + x].r);
+					img[y * width + x].g = calc_max(1, img[y * width + x].g);
+					img[y * width + x].b = calc_max(1, img[y * width + x].b);
 					++count;
 				}
 			}
@@ -535,9 +561,9 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 			U16 avg_g = sum_g / count;
 			U16 avg_b = sum_b / count;
 
-			lsc_lum.r_gain[by * lsc_width + bx] = avg_r;
-			lsc_lum.g_gain[by * lsc_width + bx] = avg_g;
-			lsc_lum.b_gain[by * lsc_width + bx] = avg_b;
+			lsc_lum.r_gain[by * lsc_width + bx] = calc_max(1,avg_r);
+			lsc_lum.g_gain[by * lsc_width + bx] = calc_max(1,avg_g);
+			lsc_lum.b_gain[by * lsc_width + bx] = calc_max(1,avg_b);
 		}
 	}
 
@@ -575,37 +601,60 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 }
 
 
-U8 search_max(RGB* img)
+LUM_EDGE search_edge(RGB* img)
 {
 	U8 max = 0;
-	U32 pos_x = 0, pos_y = 0;
+	U8 min = 255;
+	U32 pos_x_max = 0, pos_y_max = 0;
+	U32 pos_x_min = 0, pos_y_min = 0;
 	RGB* pixel = img;
 
 	for (U32 y = 0; y < height; y++) {
 		for (U32 x = 0; x < width; x++) {
 			if (pixel->r > max) {
 				max = pixel->r;
-				pos_x = x;
-				pos_y = y;
+				pos_x_max = x;
+				pos_y_max = y;
 			}
 			else if (pixel->g > max) {
 				max = pixel->g;
-				pos_x = x;
-				pos_y = y;
+				pos_x_max = x;
+				pos_y_max = y;
 			}
 			else if (pixel->b > max) {
 				max = pixel->b;
-				pos_x = x;
-				pos_y = y;
+				pos_x_max = x;
+				pos_y_max = y;
+			}
+
+			if (pixel->r < min) {
+				min = pixel->r;
+				pos_x_min = x;
+				pos_y_min = y;
+			}
+			else if (pixel->g < min) {
+				min = pixel->g;
+				pos_x_min = x;
+				pos_y_min = y;
+			}
+			else if (pixel->b < min) {
+				min = pixel->b;
+				pos_x_min = x;
+				pos_y_min = y;
 			}
 			pixel++;
 		}
 	}
 
-	LOG("Max value: %u at position (%u, %u) with RGB(%u, %u, %u).", max, pos_x, pos_y, 
-		img[pos_y * width + pos_x].r, img[pos_y * width + pos_x].g, img[pos_y * width + pos_x].b);
-
-	return max;
+	LOG("Max value: %u at position (%u, %u) with RGB(%u, %u, %u).", max, pos_x_max, pos_y_max, 
+		img[pos_y_max * width + pos_x_max].r, img[pos_y_max * width + pos_x_max].g, img[pos_y_max * width + pos_x_max].b);
+	LOG("Min value: %u at position (%u, %u) with RGB(%u, %u, %u).", min, pos_x_min, pos_y_min,
+		img[pos_y_min * width + pos_x_min].r, img[pos_y_min * width + pos_x_min].g, img[pos_y_min * width + pos_x_min].b);
+	
+	LUM_EDGE tmp = { 0 };
+	tmp.min = min;
+	tmp.max = max;
+	return tmp;
 }
 
 S32 calc_interpolation_array(S32* array_x, S32* array_y, S32 size, S32 x)

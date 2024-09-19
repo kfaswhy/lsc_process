@@ -55,6 +55,12 @@ typedef struct _RGB
 	BYTE r;
 }RGB;
 
+typedef struct _LUM_EDGE
+{
+	U8 min;
+	U8 max;
+}LUM_EDGE;
+
 typedef struct {
 	S32 h;
 	BYTE s;
@@ -96,7 +102,7 @@ void calc_lsc();
 
 S32 enblock(RGB* img, S32 blk_width, S32 blk_height);
 
-U8 search_max(RGB* img);
+LUM_EDGE search_edge(RGB* img);
 
 RGB* load_bmp(const char* filename);
 
