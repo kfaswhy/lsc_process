@@ -10,10 +10,11 @@ BYTE* pad = NULL;
 int height = 0;
 int width = 0;
 
-int lsc_width = 27; 
-int lsc_height = 17;
+int lsc_width = 17; 
+int lsc_height = 27;
 
 int gain_ratio_perent = 40;
+int color_gain_inter = 0;
 
 LSC lsc_color = { 0 };
 LSC lsc_lum = { 0 };
@@ -45,11 +46,13 @@ int main()
 
 int img_process(RGB* img)
 {
-	//查找最亮点
-	edge = search_edge(img);
+
 	
 	//图像分块并计算均值
 	enblock(img, lsc_width, lsc_height);
+
+	//查找最亮点
+	edge = search_edge(img);
 	
 	//计算块通道增益
 	calc_lsc();
@@ -378,6 +381,11 @@ void do_lsc_cali(RGB* img)
 	U32 tmp = 0;
 	U32 tmp_gain = 0;
 
+	U32 x0, y0, a1, a2;
+
+	U32 blk_height = height / lsc_height + 1;
+	U32 blk_width = width / lsc_width + 1;
+
 	//色彩校正
 	for (S32 by = 0; by < lsc_height; ++by)
 	{
@@ -387,16 +395,79 @@ void do_lsc_cali(RGB* img)
 			{
 				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
 				{
+					if (color_gain_inter == 1)
+					{
+						U32 gain1, gain2, gain3, gain4;
 
-					
-					tmp = img[y * width + x].r * lsc_color.r_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].r = calc_min(tmp, 255);
-					
-					tmp = img[y * width + x].g * lsc_color.g_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].g = calc_min(tmp, 255);
+						//中心区域
+						if (y >= blk_height / 2 && y <= ((lsc_height - 1) * blk_height + blk_height / 2) &&
+							x >= blk_width / 2 && x <= ((lsc_width - 1) * blk_width + blk_width / 2))
+						{
+							U32 x_index = (x - blk_width / 2) / blk_width;
+							U32 y_index = (y - blk_height / 2) / blk_height;
+							
+							gain1 = lsc_color.r_gain[y_index * lsc_width + x_index];
+							gain2 = lsc_color.r_gain[y_index * lsc_width + x_index+1];
+							gain3 = lsc_color.r_gain[(y_index + 1) * lsc_width + x_index];
+							gain4 = lsc_color.r_gain[(y_index + 1) * lsc_width + x_index + 1];
+							x0 = x - x_index * blk_width - blk_width / 2;
+							y0 = y - y_index * blk_height - blk_height / 2;
+							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
+							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
+							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
+							img[y * width + x].r = calc_min(img[y * width + x].r * tmp_gain / 1024, 255);
 
-					tmp = img[y * width + x].b * lsc_color.b_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].b = calc_min(tmp, 255);
+							gain1 = lsc_color.g_gain[y_index * lsc_width + x_index];
+							gain2 = lsc_color.g_gain[y_index * lsc_width + x_index + 1];
+							gain3 = lsc_color.g_gain[(y_index + 1) * lsc_width + x_index];
+							gain4 = lsc_color.g_gain[(y_index + 1) * lsc_width + x_index + 1];
+							x0 = x - x_index * blk_width - blk_width / 2;
+							y0 = y - y_index * blk_height - blk_height / 2;
+							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
+							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
+							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
+							img[y * width + x].g = calc_min(img[y * width + x].g * tmp_gain / 1024, 255);
+
+							gain1 = lsc_color.b_gain[y_index * lsc_width + x_index];
+							gain2 = lsc_color.b_gain[y_index * lsc_width + x_index + 1];
+							gain3 = lsc_color.b_gain[(y_index + 1) * lsc_width + x_index];
+							gain4 = lsc_color.b_gain[(y_index + 1) * lsc_width + x_index + 1];
+							x0 = x - x_index * blk_width - blk_width / 2;
+							y0 = y - y_index * blk_height - blk_height / 2;
+							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
+							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
+							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
+							img[y * width + x].b = calc_min(img[y * width + x].b * tmp_gain / 1024, 255);
+						}
+
+
+
+
+						//边缘判断
+
+						if (y < height / lsc_height / 2)
+						{
+							//gain1=gain3;
+							//gain2=gain4;
+						}
+						if (x < width / lsc_width / 2)
+						{
+							//gain1=gain2;
+							//gain3=gain4;
+						}
+
+					}
+					else
+					{
+						tmp = img[y * width + x].r * lsc_color.r_gain[by * lsc_width + bx] / 1024;
+						img[y * width + x].r = calc_min(tmp, 255);
+						
+						tmp = img[y * width + x].g * lsc_color.g_gain[by * lsc_width + bx] / 1024;
+						img[y * width + x].g = calc_min(tmp, 255);
+
+						tmp = img[y * width + x].b * lsc_color.b_gain[by * lsc_width + bx] / 1024;
+						img[y * width + x].b = calc_min(tmp, 255);
+					}
 				}
 			}
 		}
@@ -627,61 +698,49 @@ S32 enblock(RGB* img, S32 lsc_width, S32 lsc_height)
 
 RGB_EDGE search_edge(RGB* img)
 {
-	U8 max = 0;
-	U8 min = 255;
+	U32 max = 0;
+	U32 min = 255;
 	U32 pos_x_max = 0, pos_y_max = 0;
 	U32 pos_x_min = 0, pos_y_min = 0;
 	RGB* pixel = img;
+	U32 lum = 0;
 
-	for (U32 y = 0; y < height; y++) {
-		for (U32 x = 0; x < width; x++) {
-			if (pixel->r > max) {
-				max = pixel->r;
-				pos_x_max = x;
-				pos_y_max = y;
-			}
-			else if (pixel->g > max) {
-				max = pixel->g;
-				pos_x_max = x;
-				pos_y_max = y;
-			}
-			else if (pixel->b > max) {
-				max = pixel->b;
+	for (U32 y = 0; y < lsc_height; y++)
+	{
+		for (U32 x = 0; x < lsc_width; x++)
+		{
+			lum = lsc_lum.r_gain[y * lsc_width + x] * 3 + lsc_lum.g_gain[y * lsc_width + x] * 6 + lsc_lum.b_gain[y * lsc_width + x];
+			lum /= 10;
+			if (lum > max)
+			{
+				max = lum;
 				pos_x_max = x;
 				pos_y_max = y;
 			}
 
-			if (pixel->r < min) {
-				min = pixel->r;
+			if (lum < min) {
+				min = lum;
 				pos_x_min = x;
 				pos_y_min = y;
 			}
-			else if (pixel->g < min) {
-				min = pixel->g;
-				pos_x_min = x;
-				pos_y_min = y;
-			}
-			else if (pixel->b < min) {
-				min = pixel->b;
-				pos_x_min = x;
-				pos_y_min = y;
-			}
+
 			pixel++;
 		}
 	}
 
-	LOG("Max value: %u at position (%u, %u) with RGB(%u, %u, %u).", max, pos_x_max, pos_y_max, 
-		img[pos_y_max * width + pos_x_max].r, img[pos_y_max * width + pos_x_max].g, img[pos_y_max * width + pos_x_max].b);
-	LOG("Min value: %u at position (%u, %u) with RGB(%u, %u, %u).", min, pos_x_min, pos_y_min,
-		img[pos_y_min * width + pos_x_min].r, img[pos_y_min * width + pos_x_min].g, img[pos_y_min * width + pos_x_min].b);
-	
 	RGB_EDGE tmp = { 0 };
-	tmp.min.r = img[pos_y_min * width + pos_x_min].r;
-	tmp.min.g = img[pos_y_min * width + pos_x_min].g;
-	tmp.min.b = img[pos_y_min * width + pos_x_min].b;
-	tmp.max.r = img[pos_y_max * width + pos_x_max].r;
-	tmp.max.g = img[pos_y_max * width + pos_x_max].g;
-	tmp.max.b = img[pos_y_max * width + pos_x_max].b;
+	tmp.min.r = lsc_lum.r_gain[pos_y_min * lsc_width + pos_x_min];
+	tmp.min.g = lsc_lum.g_gain[pos_y_min * lsc_width + pos_x_min];
+	tmp.min.b = lsc_lum.b_gain[pos_y_min * lsc_width + pos_x_min];
+	tmp.max.r = lsc_lum.r_gain[pos_y_max * lsc_width + pos_x_max];
+	tmp.max.g = lsc_lum.g_gain[pos_y_max * lsc_width + pos_x_max];
+	tmp.max.b = lsc_lum.b_gain[pos_y_max * lsc_width + pos_x_max];
+
+	LOG("Max value: %u at position (%u, %u) with RGB(%u, %u, %u).", max, pos_x_max, pos_y_max,
+		tmp.max.r, tmp.max.g, tmp.max.b);
+	LOG("Min value: %u at position (%u, %u) with RGB(%u, %u, %u).", min, pos_x_min, pos_y_min,
+		tmp.min.r, tmp.min.g, tmp.min.b);
+
 	return tmp;
 }
 
