@@ -13,8 +13,8 @@ int width = 0;
 int lsc_width = 17; 
 int lsc_height = 27;
 
-int gain_ratio_perent = 40;
-int color_gain_inter = 0;
+int gain_ratio_perent = 70;
+int color_gain_interpolation = 1;
 
 LSC lsc_color = { 0 };
 LSC lsc_lum = { 0 };
@@ -66,10 +66,7 @@ int img_process(RGB* img)
 }
 
 
-U8 gamma(U8 a)
-{
-	return (U8)((U32)355 * a / (a + 100));
-}
+
 
 void dump_lsc()
 {
@@ -377,126 +374,140 @@ void dump_lsc()
 }
 void do_lsc_cali(RGB* img)
 {
-	U32 lum = 0;
-	U32 tmp = 0;
-	U32 tmp_gain = 0;
-
-	U32 x0, y0, a1, a2;
-
 	U32 blk_height = height / lsc_height + 1;
 	U32 blk_width = width / lsc_width + 1;
 
-	//色彩校正
-	for (S32 by = 0; by < lsc_height; ++by)
+	// 色彩校正
+	for (int i = 0; i < height; ++i)
 	{
-		for (S32 bx = 0; bx < lsc_width; ++bx)
+		for (int j = 0; j < width; ++j)
 		{
-			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			// 计算当前像素所在的块的索引
+			int x = j / blk_width;
+			int y = i / blk_height;
+
+			// 计算双线性插值的权重
+			float x_ratio = (float)(j % blk_width) / blk_width;
+			float y_ratio = (float)(i % blk_height) / blk_height;
+			if (x == lsc_width - 1)
 			{
-				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
-				{
-					if (color_gain_inter == 1)
-					{
-						U32 gain1, gain2, gain3, gain4;
-
-						//中心区域
-						if (y >= blk_height / 2 && y <= ((lsc_height - 1) * blk_height + blk_height / 2) &&
-							x >= blk_width / 2 && x <= ((lsc_width - 1) * blk_width + blk_width / 2))
-						{
-							U32 x_index = (x - blk_width / 2) / blk_width;
-							U32 y_index = (y - blk_height / 2) / blk_height;
-							
-							gain1 = lsc_color.r_gain[y_index * lsc_width + x_index];
-							gain2 = lsc_color.r_gain[y_index * lsc_width + x_index+1];
-							gain3 = lsc_color.r_gain[(y_index + 1) * lsc_width + x_index];
-							gain4 = lsc_color.r_gain[(y_index + 1) * lsc_width + x_index + 1];
-							x0 = x - x_index * blk_width - blk_width / 2;
-							y0 = y - y_index * blk_height - blk_height / 2;
-							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
-							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
-							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
-							img[y * width + x].r = calc_min(img[y * width + x].r * tmp_gain / 1024, 255);
-
-							gain1 = lsc_color.g_gain[y_index * lsc_width + x_index];
-							gain2 = lsc_color.g_gain[y_index * lsc_width + x_index + 1];
-							gain3 = lsc_color.g_gain[(y_index + 1) * lsc_width + x_index];
-							gain4 = lsc_color.g_gain[(y_index + 1) * lsc_width + x_index + 1];
-							x0 = x - x_index * blk_width - blk_width / 2;
-							y0 = y - y_index * blk_height - blk_height / 2;
-							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
-							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
-							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
-							img[y * width + x].g = calc_min(img[y * width + x].g * tmp_gain / 1024, 255);
-
-							gain1 = lsc_color.b_gain[y_index * lsc_width + x_index];
-							gain2 = lsc_color.b_gain[y_index * lsc_width + x_index + 1];
-							gain3 = lsc_color.b_gain[(y_index + 1) * lsc_width + x_index];
-							gain4 = lsc_color.b_gain[(y_index + 1) * lsc_width + x_index + 1];
-							x0 = x - x_index * blk_width - blk_width / 2;
-							y0 = y - y_index * blk_height - blk_height / 2;
-							a1 = x0 * (gain2 - gain1) / blk_width + gain1;
-							a2 = x0 * (gain4 - gain3) / blk_width + gain3;
-							tmp_gain = y0 * (a2 - a1) / blk_height + a1;
-							img[y * width + x].b = calc_min(img[y * width + x].b * tmp_gain / 1024, 255);
-						}
-
-
-
-
-						//边缘判断
-
-						if (y < height / lsc_height / 2)
-						{
-							//gain1=gain3;
-							//gain2=gain4;
-						}
-						if (x < width / lsc_width / 2)
-						{
-							//gain1=gain2;
-							//gain3=gain4;
-						}
-
-					}
-					else
-					{
-						tmp = img[y * width + x].r * lsc_color.r_gain[by * lsc_width + bx] / 1024;
-						img[y * width + x].r = calc_min(tmp, 255);
-						
-						tmp = img[y * width + x].g * lsc_color.g_gain[by * lsc_width + bx] / 1024;
-						img[y * width + x].g = calc_min(tmp, 255);
-
-						tmp = img[y * width + x].b * lsc_color.b_gain[by * lsc_width + bx] / 1024;
-						img[y * width + x].b = calc_min(tmp, 255);
-					}
-				}
+				x_ratio = 0;
 			}
+			if (y == lsc_height - 1)
+			{
+				y_ratio = 0;
+			}
+
+			// 获取四个相邻块的增益值
+			U32 r_gain_tl = lsc_color.r_gain[y * lsc_width + x];
+			U32 r_gain_tr = lsc_color.r_gain[y * lsc_width + (x + 1)];
+			U32 r_gain_bl = lsc_color.r_gain[(y + 1) * lsc_width + x];
+			U32 r_gain_br = lsc_color.r_gain[(y + 1) * lsc_width + (x + 1)];
+
+			U32 g_gain_tl = lsc_color.g_gain[y * lsc_width + x];
+			U32 g_gain_tr = lsc_color.g_gain[y * lsc_width + (x + 1)];
+			U32 g_gain_bl = lsc_color.g_gain[(y + 1) * lsc_width + x];
+			U32 g_gain_br = lsc_color.g_gain[(y + 1) * lsc_width + (x + 1)];
+
+			U32 b_gain_tl = lsc_color.b_gain[y * lsc_width + x];
+			U32 b_gain_tr = lsc_color.b_gain[y * lsc_width + (x + 1)];
+			U32 b_gain_bl = lsc_color.b_gain[(y + 1) * lsc_width + x];
+			U32 b_gain_br = lsc_color.b_gain[(y + 1) * lsc_width + (x + 1)];
+
+			// 计算插值后的增益值
+			float r_gain = (1 - x_ratio) * (1 - y_ratio) * r_gain_tl +
+				x_ratio * (1 - y_ratio) * r_gain_tr +
+				(1 - x_ratio) * y_ratio * r_gain_bl +
+				x_ratio * y_ratio * r_gain_br;
+
+			float g_gain = (1 - x_ratio) * (1 - y_ratio) * g_gain_tl +
+				x_ratio * (1 - y_ratio) * g_gain_tr +
+				(1 - x_ratio) * y_ratio * g_gain_bl +
+				x_ratio * y_ratio * g_gain_br;
+
+			float b_gain = (1 - x_ratio) * (1 - y_ratio) * b_gain_tl +
+				x_ratio * (1 - y_ratio) * b_gain_tr +
+				(1 - x_ratio) * y_ratio * b_gain_bl +
+				x_ratio * y_ratio * b_gain_br;
+
+			// 应用增益值进行颜色校正
+			img[i * width + j].r = (BYTE)clp_range(0, img[i * width + j].r * r_gain / 1024, 255);
+			img[i * width + j].g = (BYTE)clp_range(0, img[i * width + j].g * g_gain / 1024, 255);
+			img[i * width + j].b = (BYTE)clp_range(0, img[i * width + j].b * b_gain / 1024, 255);
 		}
 	}
+
+
 	save_bmp("5_color_cali.bmp", img, width, height);
 
-	//亮度校正
-	for (S32 by = 0; by < lsc_height; ++by)
+	// 亮度校正
+	for (int i = 0; i < height; ++i)
 	{
-		for (S32 bx = 0; bx < lsc_width; ++bx)
+		for (int j = 0; j < width; ++j)
 		{
-			for (S32 y = by * (height / lsc_height + 1); (y < (by + 1) * (height / lsc_height + 1)) && (y < height); ++y)
+			// 计算当前像素所在的块的索引
+			int x = j / blk_width ;
+			int y = i / blk_height ;
+
+			// 计算双线性插值的权重
+			float x_ratio = (float)(j % blk_width) / blk_width;
+			float y_ratio = (float)(i % blk_height) / blk_height;
+			if (x == lsc_width - 1)
 			{
-				for (S32 x = bx * (width / lsc_width + 1); (x < (bx + 1) * (width / lsc_width + 1)) && (x < width); ++x)
-				{
-					tmp = img[y * width + x].r * lsc_lum.r_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].r = calc_min(tmp, 255);
-
-					tmp = img[y * width + x].g * lsc_lum.g_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].g = calc_min(tmp, 255);
-
-					tmp = img[y * width + x].b * lsc_lum.b_gain[by * lsc_width + bx] / 1024;
-					img[y * width + x].b = calc_min(tmp, 255);
-				}
+				x_ratio = 0;
 			}
-		}
+			if (y == lsc_height - 1)
+			{
+				y_ratio = 0;
+			}
+
+			// 获取四个相邻块的增益值
+			U32 r_gain_tl = lsc_lum.r_gain[y * lsc_width + x];
+			U32 r_gain_tr = lsc_lum.r_gain[y * lsc_width + (x + 1)];
+			U32 r_gain_bl = lsc_lum.r_gain[(y + 1) * lsc_width + x];
+			U32 r_gain_br = lsc_lum.r_gain[(y + 1) * lsc_width + (x + 1)];
+
+			U32 g_gain_tl = lsc_lum.g_gain[y * lsc_width + x];
+			U32 g_gain_tr = lsc_lum.g_gain[y * lsc_width + (x + 1)];
+			U32 g_gain_bl = lsc_lum.g_gain[(y + 1) * lsc_width + x];
+			U32 g_gain_br = lsc_lum.g_gain[(y + 1) * lsc_width + (x + 1)];
+
+			U32 b_gain_tl = lsc_lum.b_gain[y * lsc_width + x];
+			U32 b_gain_tr = lsc_lum.b_gain[y * lsc_width + (x + 1)];
+			U32 b_gain_bl = lsc_lum.b_gain[(y + 1) * lsc_width + x];
+			U32 b_gain_br = lsc_lum.b_gain[(y + 1) * lsc_width + (x + 1)];
+
+			// 计算插值后的增益值
+			float r_gain = (1 - x_ratio) * (1 - y_ratio) * r_gain_tl +
+				x_ratio * (1 - y_ratio) * r_gain_tr +
+				(1 - x_ratio) * y_ratio * r_gain_bl +
+				x_ratio * y_ratio * r_gain_br;
+
+			float g_gain = (1 - x_ratio) * (1 - y_ratio) * g_gain_tl +
+				x_ratio * (1 - y_ratio) * g_gain_tr +
+				(1 - x_ratio) * y_ratio * g_gain_bl +
+				x_ratio * y_ratio * g_gain_br;
+
+			float b_gain = (1 - x_ratio) * (1 - y_ratio) * b_gain_tl +
+				x_ratio * (1 - y_ratio) * b_gain_tr +
+				(1 - x_ratio) * y_ratio * b_gain_bl +
+				x_ratio * y_ratio * b_gain_br;
+
+			r_gain = (r_gain - 1024) * gain_ratio_perent / 100 + 1024;
+			g_gain = (g_gain - 1024) * gain_ratio_perent / 100 + 1024;
+			b_gain = (b_gain - 1024) * gain_ratio_perent / 100 + 1024;
+
+			// 应用增益值进行颜色校正
+			img[i * width + j].r = (BYTE)clp_range(0, img[i * width + j].r * r_gain / 1024, 255);
+			img[i * width + j].g = (BYTE)clp_range(0, img[i * width + j].g * g_gain / 1024, 255);
+			img[i * width + j].b = (BYTE)clp_range(0, img[i * width + j].b * b_gain / 1024, 255);
+}
 	}
 
-	save_bmp("6_y_cali.bmp", img, width, height);
+
+	save_bmp("6_luma_cali.bmp", img, width, height);
+
+
 	LOG("Done.");
 }
 
@@ -742,6 +753,25 @@ RGB_EDGE search_edge(RGB* img)
 		tmp.min.r, tmp.min.g, tmp.min.b);
 
 	return tmp;
+}
+
+U32 bilinear_interp(U16 left_top, U16 left_bottom, U16 right_top, U16 right_bottom, double x_weight, double y_weight)
+{
+	S32 x_up = 0;
+	S32 x_down = 0;
+	S32 res = 0;
+
+	/* x方向插值 */
+	x_up = (1 - x_weight) * left_top + x_weight * right_top;
+	x_down = (1 - x_weight) * left_bottom + x_weight * right_bottom;
+	/* y方向插值 */
+	res = (1 - y_weight) * x_up + y_weight * x_down;
+	return res;
+}
+
+U8 gamma(U8 a)
+{
+	return (U8)((U32)355 * a / (a + 100));
 }
 
 S32 calc_interpolation_array(S32* array_x, S32* array_y, S32 size, S32 x)
