@@ -11,7 +11,7 @@ int height = 0;
 int width = 0;
 
 int lsc_width = 17; 
-int lsc_height = 27;
+int lsc_height = 17;
 
 int gain_ratio_perent = 70;
 int color_gain_interpolation = 1;
@@ -537,7 +537,14 @@ void calc_lsc()
 				lsc_color.g_gain[index] = (U32)U10_FACTOR * edge.max.g * lsc_lum.r_gain[index] / edge.max.r / lsc_lum.g_gain[index];
 				lsc_color.b_gain[index] = (U32)U10_FACTOR * edge.max.b * lsc_lum.r_gain[index] / edge.max.r / lsc_lum.b_gain[index];
 				max_color = lsc_lum.r_gain[index];
-				lsc_lum.r_gain[index] = ((edge.max.r - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				if (edge.max.r < max_color)
+				{
+					lsc_lum.r_gain[index] = 1024;
+				}
+				else
+				{
+					lsc_lum.r_gain[index] = ((edge.max.r - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				}
 				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
 				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 
@@ -545,12 +552,21 @@ void calc_lsc()
 			else if(edge.max.g >= edge.max.r && edge.max.g >= edge.max.b)
 			{
 				//主色彩是绿色
-				//lum_ratio = (float)lsc_lum.g_gain[index] / edge.max.r;
+				//lum_ratio = (float)lsc_lum.g_gain[index] / edge.max.r; 
 				lsc_color.g_gain[index] = U10_FACTOR;
 				lsc_color.r_gain[index] = (U32)U10_FACTOR * edge.max.r * lsc_lum.g_gain[index] / edge.max.g / lsc_lum.r_gain[index];
 				lsc_color.b_gain[index] = (U32)U10_FACTOR * edge.max.b * lsc_lum.g_gain[index] / edge.max.g / lsc_lum.b_gain[index];
 				max_color = lsc_lum.g_gain[index];
-				lsc_lum.r_gain[index] = ((edge.max.g - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+
+				if (edge.max.g < max_color)
+				{
+					lsc_lum.r_gain[index] = 1024;
+				}
+				else 
+				{
+					lsc_lum.r_gain[index] = ((edge.max.g - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				}
+				
 				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
 				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 
@@ -561,7 +577,15 @@ void calc_lsc()
 				lsc_color.g_gain[index] = (U32)U10_FACTOR * edge.max.g * lsc_lum.b_gain[index] / edge.max.b / lsc_lum.g_gain[index];
 				lsc_color.r_gain[index] = (U32)U10_FACTOR * edge.max.r * lsc_lum.b_gain[index] / edge.max.b / lsc_lum.r_gain[index];
 				max_color = lsc_lum.b_gain[index];
-				lsc_lum.r_gain[index] = ((edge.max.b - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				if (edge.max.b < max_color)
+				{
+					lsc_lum.r_gain[index] = 1024;
+				}
+				else
+				{
+					lsc_lum.r_gain[index] = ((edge.max.b - max_color) * gain_ratio_perent / 100 + max_color) * 1024 / max_color;
+				}
+				
 				lsc_lum.g_gain[index] = lsc_lum.r_gain[index];
 				lsc_lum.b_gain[index] = lsc_lum.r_gain[index];
 			}
