@@ -13,8 +13,10 @@ int width = 0;
 int lsc_width = 17; 
 int lsc_height = 17;
 
-int gain_ratio_perent = 70;
+int gain_ratio_perent = 100;
 int color_gain_interpolation = 1;
+
+U32 set_max = 3072;
 
 LSC lsc_color = { 0 };
 LSC lsc_lum = { 0 };
@@ -91,7 +93,8 @@ void dump_lsc()
 			for (S32 by = lsc_height - 1; by >= 0; --by) {
 				for (S32 bx = 0; bx < lsc_width; ++bx) {
 					int index = by * lsc_width + bx;
-					fprintf(file, "%u", ((U64)lsc_color.r_gain[index] * lsc_lum.r_gain[index] + 512) >> 10);
+					U64 tmp = ((U64)lsc_color.r_gain[index] * lsc_lum.r_gain[index] + 512) >> 10;
+					fprintf(file, "%u", calc_min(tmp, set_max));
 					//if (bx < lsc_width - 1) 
 					{
 						fprintf(file, ",");
@@ -123,7 +126,8 @@ void dump_lsc()
 			for (S32 by = lsc_height - 1; by >= 0; --by) {
 				for (S32 bx = 0; bx < lsc_width; ++bx) {
 					int index = by * lsc_width + bx;
-					fprintf(file, "%u", ((U64)lsc_color.g_gain[index] * lsc_lum.g_gain[index] + 512) >> 10);
+					U64 tmp = ((U64)lsc_color.g_gain[index] * lsc_lum.g_gain[index] + 512) >> 10;
+					fprintf(file, "%u", calc_min(tmp, set_max));
 					//if (bx < lsc_width - 1) 
 					{
 						fprintf(file, ",");
@@ -155,7 +159,8 @@ void dump_lsc()
 			for (S32 by = lsc_height - 1; by >= 0; --by) {
 				for (S32 bx = 0; bx < lsc_width; ++bx) {
 					int index = by * lsc_width + bx;
-					fprintf(file, "%u", ((U64)lsc_color.b_gain[index] * lsc_lum.b_gain[index] + 512) >> 10);
+					U64 tmp = ((U64)lsc_color.b_gain[index] * lsc_lum.b_gain[index] + 512) >> 10;
+					fprintf(file, "%u", calc_min(tmp, set_max));
 					//if (bx < lsc_width - 1) 
 					{
 						fprintf(file, ",");
